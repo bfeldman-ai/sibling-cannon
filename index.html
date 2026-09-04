@@ -2340,44 +2340,121 @@ function initBraids(){
   });
   braidAcc = 0;
 }
+/* One verlet rope step, shared by the braids and the cat's legs. Relaxation
+   gives the sag; the rigid follow-the-leader pass afterwards guarantees exact
+   segment lengths, because relaxation alone cannot keep up when the root is
+   moving 30px a step and the rope would stay bundled after a whip. */
+function ropeSubstep(pts, root, seg, h, damp, grav, iters){
+  const g2 = grav * h * h;
+  pts[0].x = root.x; pts[0].y = root.y; pts[0].px = root.x; pts[0].py = root.y;
+  for (let i = 1; i < pts.length; i++){
+    const p = pts[i];
+    const vx = (p.x - p.px) * damp, vy = (p.y - p.py) * damp;
+    p.px = p.x; p.py = p.y;
+    p.x += vx; p.y += vy + g2;
+  }
+  for (let it = 0; it < iters; it++){
+    pts[0].x = root.x; pts[0].y = root.y;
+    for (let i = 0; i < pts.length - 1; i++){
+      const a = pts[i], c = pts[i + 1];
+      const dx = c.x - a.x, dy = c.y - a.y;
+      const dl = Math.hypot(dx, dy) || 0.0001;
+      const f = ((dl - seg) / dl) * 0.5;
+      const ox = dx * f, oy = dy * f;
+      if (i > 0){ a.x += ox; a.y += oy; }
+      c.x -= ox; c.y -= oy;
+    }
+  }
+  pts[0].x = root.x; pts[0].y = root.y;
+  for (let i = 1; i < pts.length; i++){
+    const a = pts[i - 1], c = pts[i];
+    let dx = c.x - a.x, dy = c.y - a.y;
+    let dl = Math.hypot(dx, dy);
+    // Two coincident points have no direction to extend along, and the pass
+    // would leave the segment collapsed forever. Fall back to hanging down.
+    if (dl < 1e-6){ dx = 0; dy = 1; dl = 1; }
+    const f = seg / dl;                      // exact, so it neither stretches nor bunches
+    c.x = a.x + dx * f; c.y = a.y + dy * f;
+  }
+}
 function braidSubstep(h){
   const roots = braidRoots();
-  const g2 = 900 * h * h;
-  for (let b = 0; b < braids.length; b++){
-    const pts = braids[b].pts, root = roots[b];
-    pts[0].x = root.x; pts[0].y = root.y; pts[0].px = root.x; pts[0].py = root.y;
-    for (let i = 1; i < pts.length; i++){
-      const p = pts[i];
-      const vx = (p.x - p.px) * 0.985, vy = (p.y - p.py) * 0.985;
-      p.px = p.x; p.py = p.y;
-      p.x += vx; p.y += vy + g2;
-    }
-    for (let it = 0; it < 6; it++){          // relaxation gives it natural sag
-      pts[0].x = root.x; pts[0].y = root.y;
-      for (let i = 0; i < pts.length - 1; i++){
-        const a = pts[i], c = pts[i + 1];
-        const dx = c.x - a.x, dy = c.y - a.y;
-        const dl = Math.hypot(dx, dy) || 0.0001;
-        const f = ((dl - BRAID_SEG) / dl) * 0.5;
-        const ox = dx * f, oy = dy * f;
-        if (i > 0){ a.x += ox; a.y += oy; }
-        c.x -= ox; c.y -= oy;
-      }
-    }
-    // Rigid follow-the-leader from the root. Relaxation alone can't keep up when
-    // the head is moving 30px a step; this guarantees exact segment lengths, so
-    // any bundling during a whip works itself out instead of sticking.
-    pts[0].x = root.x; pts[0].y = root.y;
-    for (let i = 1; i < pts.length; i++){
-      const a = pts[i - 1], c = pts[i];
-      let dx = c.x - a.x, dy = c.y - a.y;
-      let dl = Math.hypot(dx, dy);
-      // Two coincident points have no direction to extend along, and the pass
-      // would leave the segment collapsed forever. Fall back to hanging down.
-      if (dl < 1e-6){ dx = 0; dy = 1; dl = 1; }
-      const f = BRAID_SEG / dl;              // exact, so it neither stretches nor bunches
-      c.x = a.x + dx * f; c.y = a.y + dy * f;
-    }
+  for (let b = 0; b < braids.length; b++)
+    ropeSubstep(braids[b].pts, roots[b], BRAID_SEG, h, 0.985, 900, 6);
+}
+
+/* ---------- the cat's legs ---------- *
+ * Four stubby two-segment ropes hung off the underside of the body. Only the
+ * classic kitten gets them - an uploaded head has no body to hang them from.
+ * Two are drawn behind the sprite and two in front, which reads as depth.   */
+const LEG_SEGS = 2;                               // upper and lower, nothing more
+const LEG_SPIN = 1;                               // bolted to the body, so full rotation
+const LEG_STEP = 1 / 60;
+// sprite-local, normalised like KIT_MARKS: along the belly, back pair first
+const LEG_ROOTS = [
+  { x: 0.25, y: 0.78, front: false, len: 0.46 },
+  { x: 0.39, y: 0.83, front: true,  len: 0.50 },
+  { x: 0.56, y: 0.83, front: false, len: 0.50 },
+  { x: 0.70, y: 0.78, front: true,  len: 0.46 },
+];
+let legs = null, legAcc = 0;
+function legsShown(){ return !custom && !usingDefault(); }
+function legRoots(){
+  const s = spriteSize();
+  const rot = k.rot * LEG_SPIN, ca = Math.cos(rot), sa = Math.sin(rot);
+  return LEG_ROOTS.map(L => {
+    const lx = (L.x - 0.5) * s.w, ly = (L.y - 0.5) * s.h;
+    return { x: k.x + lx * ca - ly * sa, y: k.y + lx * sa + ly * ca };
+  });
+}
+function initLegs(){
+  const s = spriteSize(), roots = legRoots();
+  legs = roots.map((r, i) => {
+    const seg = LEG_ROOTS[i].len * s.h / LEG_SEGS;
+    const pts = [];
+    for (let j = 0; j <= LEG_SEGS; j++)
+      pts.push({ x: r.x, y: r.y + j * seg, px: r.x, py: r.y + j * seg });
+    return { pts, seg, front: LEG_ROOTS[i].front };
+  });
+  legAcc = 0;
+}
+function stepLegs(dt){
+  if (!legsShown()) { legs = null; return; }
+  if (!legs) initLegs();
+  legAcc += dt;
+  let n = 0;
+  // stiffer and heavier than hair, so they trail rather than float
+  while (legAcc >= LEG_STEP && n < 4){
+    const roots = legRoots();
+    for (let i = 0; i < legs.length; i++)
+      ropeSubstep(legs[i].pts, roots[i], legs[i].seg, LEG_STEP, 0.90, 1500, 8);
+    legAcc -= LEG_STEP; n++;
+  }
+  if (n === 4) legAcc = 0;                        // don't spiral after a stall
+}
+function drawLegs(front){
+  if (!legs) return;
+  const s = spriteSize();
+  const w0 = Math.max(1.8, s.h * 0.115);
+  for (const leg of legs){
+    if (!!leg.front !== front) continue;
+    const pts = leg.pts, n = pts.length;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#5d646b';                  // outline first, then the fur over it
+    ctx.lineWidth = w0 + 1.6;
+    ctx.beginPath(); ctx.moveTo(pts[0].x - cam.x, pts[0].y - cam.y);
+    for (let i = 1; i < n; i++) ctx.lineTo(pts[i].x - cam.x, pts[i].y - cam.y);
+    ctx.stroke();
+    ctx.strokeStyle = front ? '#c2cad1' : '#9aa3ab';
+    ctx.lineWidth = w0;
+    ctx.beginPath(); ctx.moveTo(pts[0].x - cam.x, pts[0].y - cam.y);
+    for (let i = 1; i < n; i++) ctx.lineTo(pts[i].x - cam.x, pts[i].y - cam.y);
+    ctx.stroke();
+    const t = pts[n - 1];                          // paw
+    ctx.fillStyle = '#5d646b';
+    ctx.beginPath(); ctx.arc(t.x - cam.x, t.y - cam.y, w0 * 0.72 + 0.8, 0, 7); ctx.fill();
+    ctx.fillStyle = front ? '#dfe5ea' : '#b3bbc3';
+    ctx.beginPath(); ctx.arc(t.x - cam.x, t.y - cam.y, w0 * 0.72, 0, 7); ctx.fill();
   }
 }
 function stepBraids(dt){
@@ -2549,7 +2626,7 @@ function reset(){
   level = 1; invulnT = 0; bannerT = 0; bannerLv = 2; superBounce = false;
   ceilHoles = []; belowCeil = true; ascended = false; ascendT = 0;
   wounds = []; woundT = 0;
-  braids = null;
+  braids = null; legs = null;
   ensureObstacles(1600);
 }
 function ensureObstacles(uptoX){
@@ -2829,7 +2906,6 @@ function hitObstacle(o){
 function update(dt){
   if (shake > 0) shake = Math.max(0, shake - dt * 26);
   if (woundT > 0) woundT -= dt;
-  stepBraids(dt);
   if (flash > 0) flash = Math.max(0, flash - dt * 2.4);
   for (let i = particles.length - 1; i >= 0; i--){
     const p = particles[i];
@@ -3001,6 +3077,12 @@ function update(dt){
   // minute once power-ups and chains are involved.
   if (k.x > progressX + 40){ progressX = k.x; stallT = 0; } else stallT += dt;
   if (restT > 1.0 || stallT > 10 || flightT > 240) endRun();
+
+  // Ropes step last, after the final write to k. Stepping them at the top of
+  // update() anchored them to the body's position before it moved, so at speed
+  // the roots trailed the body by most of a body length before anything drew.
+  stepBraids(dt);
+  stepLegs(dt);
 
   cam.x += (Math.max(0, k.x - 210) - cam.x) * Math.min(1, dt * 6);
   cam.y += (Math.min(groundY(k.x) - 300, k.y - 170) - cam.y) * Math.min(1, dt * 4);
@@ -4526,7 +4608,7 @@ function render(){
   ctx.globalAlpha = 1;
 
   // braids hang behind the critter
-  if (state !== AIM && state !== POWER) drawBraids();
+  if (state !== AIM && state !== POWER){ drawBraids(); drawLegs(false); }
 
   // the critter + its shadow
   if (state !== AIM && state !== POWER){
@@ -4611,6 +4693,7 @@ function render(){
       ctx.restore();
     }
   }
+  if (state !== AIM && state !== POWER) drawLegs(true);   // near pair over the body
   // the muzzle cloud engulfs the critter rather than sitting behind it
   for (const p of particles) if (p.front) drawParticle(p);
   ctx.globalAlpha = 1;
@@ -4867,7 +4950,7 @@ braidBtn.textContent = 'Braids: ' + (braidsOn ? 'on' : 'off');
 braidBtn.setAttribute('aria-pressed', String(braidsOn));
 braidBtn.addEventListener('click', () => {
   braidsOn = !braidsOn;
-  braids = null;
+  braids = null; legs = null;
   try { localStorage.setItem('siblingCannon.braids', braidsOn ? '1' : '0'); } catch(e){}
   braidBtn.textContent = 'Braids: ' + (braidsOn ? 'on' : 'off');
   braidBtn.setAttribute('aria-pressed', String(braidsOn));
