@@ -1570,7 +1570,9 @@ function blit(t, x, y, w, h){ ctx.drawImage(t, x, y, w, h); }
  * Drawn live on top of whatever sprite is in play, so an uploaded image gets one
  * too. A white glow behind the ink keeps it legible over dark photos.          */
 const FACES = ['shock', 'wince', 'grimace', 'dizzy', 'dread', 'queasy',
-               'angry', 'teary', 'deadpan', 'yell', 'confused', 'ko'];
+               'angry', 'teary', 'deadpan', 'yell', 'confused', 'ko',
+               'panic', 'stars', 'sob', 'eyeroll', 'disgust', 'crosseyed',
+               'exhausted', 'pleading', 'furious', 'blank'];
 let faceIdx = 0;
 function nextFace(){
   let n = faceIdx;
@@ -1600,14 +1602,34 @@ function drawFace(L, R, M, g){
     g.lineWidth = Math.max(1, er * 0.42);
   };
   const rot = (E, fn) => { g.save(); g.translate(E.x, E.y); g.rotate(roll); fn(); g.restore(); };
+  const whiteEye = (E, rad) => {
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(E.x, E.y, er * rad, 0, 7); g.fill();
+    g.lineWidth = Math.max(0.8, er * 0.28); g.stroke();
+    g.lineWidth = Math.max(1, er * 0.42);
+  };
+  const pupil = (E, rad, ox, oy) => {
+    g.fillStyle = ink;
+    rot(E, () => { g.beginPath(); g.arc(er * (ox || 0), er * (oy || 0), er * rad, 0, 7); g.fill(); });
+  };
+  const star = (E, R) => rot(E, () => {
+    g.beginPath();
+    for (let i = 0; i < 10; i++){
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2) ? R * 0.44 : R;
+      const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    }
+    g.closePath(); g.fillStyle = '#fff'; g.fill();
+    g.lineWidth = Math.max(0.7, er * 0.2); g.stroke(); g.lineWidth = Math.max(1, er * 0.42);
+  });
 
   if (f === 'shock' || f === 'teary'){
     for (const [E] of eyes) openEye(E, 0.82);
     if (f === 'teary'){                                   // one fat tear
       g.fillStyle = 'rgba(120,200,240,.95)';
       rot(R, () => { g.beginPath();
-        g.moveTo(er * 0.2, er * 0.7); g.quadraticCurveTo(er * 0.62, er * 1.5, 0, er * 1.7);
-        g.quadraticCurveTo(-er * 0.5, er * 1.4, -er * 0.16, er * 0.72); g.closePath(); g.fill(); });
+        g.moveTo(er * 0.18, er * 1.15); g.quadraticCurveTo(er * 0.6, er * 1.95, 0, er * 2.15);
+        g.quadraticCurveTo(-er * 0.48, er * 1.85, -er * 0.14, er * 1.17); g.closePath(); g.fill(); });
     }
   } else if (f === 'wince'){
     for (const [E, dir] of eyes) rot(E, () => {
@@ -1663,9 +1685,73 @@ function drawFace(L, R, M, g){
   } else if (f === 'confused'){
     openEye(L, 0.86);                                     // one wide, one squinting
     rot(R, () => { g.beginPath(); g.moveTo(-er * 0.55, 0); g.lineTo(er * 0.55, -er * 0.12); g.stroke(); });
+  } else if (f === 'panic'){
+    for (const [E] of eyes){ whiteEye(E, 0.98); pupil(E, 0.17); }
+  } else if (f === 'stars'){
+    for (const [E] of eyes) star(E, er * 0.95);
+  } else if (f === 'sob'){
+    for (const [E] of eyes) rot(E, () => {                // clenched, bowed downward
+      g.beginPath(); g.arc(0, -er * 0.34, er * 0.64, Math.PI * 0.14, Math.PI * 0.86); g.stroke();
+    });
+    g.fillStyle = 'rgba(120,200,240,.95)';                // twin streams
+    for (const [E] of eyes) rot(E, () => {
+      g.beginPath(); g.ellipse(0, er * 1.15, er * 0.26, er * 0.85, 0, 0, 7); g.fill();
+      g.beginPath(); g.ellipse(0, er * 2.15, er * 0.19, er * 0.34, 0, 0, 7); g.fill();
+    });
+  } else if (f === 'eyeroll'){
+    for (const [E] of eyes){ whiteEye(E, 0.8); pupil(E, 0.3, 0, -0.42); }
+  } else if (f === 'disgust'){
+    whiteEye(L, 0.78); pupil(L, 0.3, 0, -0.2);            // one wide, one screwed shut
+    rot(R, () => {
+      g.beginPath();
+      g.moveTo(-er * 0.6, -er * 0.42); g.lineTo(er * 0.5, 0);
+      g.lineTo(-er * 0.6, er * 0.42); g.stroke();
+    });
+  } else if (f === 'crosseyed'){
+    for (const [E, dir] of eyes){ whiteEye(E, 0.8); pupil(E, 0.32, 0.34 * dir, 0.08); }
+  } else if (f === 'exhausted'){
+    for (const [E] of eyes) rot(E, () => {
+      g.beginPath();                                      // heavy lid down over the eye
+      g.moveTo(-er * 0.66, -er * 0.1); g.lineTo(er * 0.66, -er * 0.1); g.stroke();
+      g.lineWidth = Math.max(0.7, er * 0.2);
+      g.beginPath(); g.arc(0, -er * 0.1, er * 0.44, 0.1, Math.PI - 0.1); g.stroke();
+      g.beginPath(); g.arc(0, er * 0.34, er * 0.62, 0.35, Math.PI - 0.35); g.stroke();  // eye bag
+      g.lineWidth = Math.max(1, er * 0.42);
+    });
+  } else if (f === 'pleading'){
+    for (const [E] of eyes){
+      whiteEye(E, 0.92); pupil(E, 0.5, 0, 0.12);
+      g.fillStyle = '#fff';                               // wet highlights
+      rot(E, () => {
+        g.beginPath(); g.arc(-er * 0.2, -er * 0.24, er * 0.19, 0, 7); g.fill();
+        g.beginPath(); g.arc(er * 0.22, er * 0.3, er * 0.1, 0, 7); g.fill();
+      });
+    }
+    for (const [E, dir] of eyes) rot(E, () => {           // brows tented up in the middle
+      g.lineWidth = Math.max(0.8, er * 0.3);
+      g.beginPath();
+      g.moveTo(-er * 0.75 * dir, -er * 0.9); g.lineTo(er * 0.6 * dir, -er * 1.28); g.stroke();
+      g.lineWidth = Math.max(1, er * 0.42);
+    });
+  } else if (f === 'furious'){
+    for (const [E, dir] of eyes) rot(E, () => {
+      g.fillStyle = ink;                                  // narrowed slits
+      g.beginPath(); g.ellipse(0, 0, er * 0.52, er * 0.2, -0.3 * dir, 0, 7); g.fill();
+      g.lineWidth = Math.max(1.1, er * 0.5);              // brows jammed down hard
+      g.beginPath();
+      g.moveTo(-er * 0.78 * dir, -er * 0.95); g.lineTo(er * 0.66 * dir, -er * 0.3); g.stroke();
+      g.lineWidth = Math.max(1, er * 0.42);
+    });
+  } else if (f === 'blank'){
+    for (const [E] of eyes) whiteEye(E, 0.72);            // nobody home
   } else {
-    for (const [E] of eyes) rot(E, () => {                // queasy: half-lidded
-      g.beginPath(); g.arc(0, er * 0.22, er * 0.65, Math.PI * 1.04, Math.PI * 1.96); g.stroke();
+    for (const [E] of eyes) rot(E, () => {                // queasy: lid down over a sunk pupil
+      g.beginPath(); g.moveTo(-er * 0.68, -er * 0.2); g.lineTo(er * 0.68, -er * 0.2); g.stroke();
+      g.lineWidth = Math.max(0.8, er * 0.28);
+      g.beginPath(); g.arc(0, -er * 0.2, er * 0.52, 0.14, Math.PI - 0.14); g.stroke();
+      g.lineWidth = Math.max(1, er * 0.42);
+      g.fillStyle = ink;
+      g.beginPath(); g.arc(0, er * 0.1, er * 0.23, 0, 7); g.fill();
     });
   }
 
@@ -1713,6 +1799,52 @@ function drawFace(L, R, M, g){
     g.stroke();
   } else if (f === 'deadpan'){
     g.beginPath(); g.moveTo(-mw * 0.14, 0); g.lineTo(mw * 0.42, 0); g.stroke();
+  } else if (f === 'panic' || f === 'sob'){
+    const ww = f === 'sob' ? 0.44 : 0.34;
+    g.fillStyle = ink;                                     // gaping wail
+    g.beginPath(); g.ellipse(0, mw * 0.04, mw * ww, mw * 0.32, 0, 0, 7); g.fill();
+    g.fillStyle = '#c8505e';
+    g.beginPath(); g.ellipse(0, mw * 0.16, mw * ww * 0.5, mw * 0.1, 0, 0, 7); g.fill();
+  } else if (f === 'stars'){
+    g.fillStyle = ink;
+    g.beginPath(); g.ellipse(0, 0, mw * 0.2, mw * 0.24, 0, 0, 7); g.fill();
+  } else if (f === 'eyeroll' || f === 'blank'){
+    g.beginPath(); g.moveTo(-mw * 0.3, mw * 0.04); g.lineTo(mw * 0.3, -mw * 0.04); g.stroke();
+  } else if (f === 'disgust'){
+    g.fillStyle = ink;                                     // lip curled back, tongue out
+    g.beginPath(); g.ellipse(-mw * 0.02, mw * 0.02, mw * 0.27, mw * 0.15, -0.14, 0, 7); g.fill();
+    g.fillStyle = '#d4707c';
+    g.beginPath(); g.ellipse(-mw * 0.04, mw * 0.19, mw * 0.14, mw * 0.18, -0.16, 0, 7); g.fill();
+    g.strokeStyle = ink; g.lineWidth = Math.max(0.8, mw * 0.06);
+    g.beginPath(); g.moveTo(-mw * 0.34, -mw * 0.14);
+    g.quadraticCurveTo(-mw * 0.2, -mw * 0.3, -mw * 0.02, -mw * 0.2); g.stroke();  // wrinkled nose
+    g.lineWidth = Math.max(1, mw * 0.13);
+  } else if (f === 'crosseyed'){
+    g.beginPath();                                         // slack wobble
+    g.moveTo(-mw * 0.36, mw * 0.02);
+    g.quadraticCurveTo(-mw * 0.12, mw * 0.22, 0, mw * 0.04);
+    g.quadraticCurveTo(mw * 0.14, -mw * 0.14, mw * 0.36, mw * 0.06); g.stroke();
+  } else if (f === 'exhausted'){
+    g.fillStyle = ink;                                     // panting, hung open
+    g.beginPath(); g.ellipse(-mw * 0.04, mw * 0.02, mw * 0.19, mw * 0.15, 0, 0, 7); g.fill();
+    g.fillStyle = '#d4707c';
+    g.beginPath(); g.ellipse(mw * 0.02, mw * 0.16, mw * 0.12, mw * 0.13, 0.1, 0, 7); g.fill();
+  } else if (f === 'pleading'){
+    g.lineWidth = Math.max(1, mw * 0.11);
+    g.beginPath();                                         // small trembling frown
+    g.moveTo(-mw * 0.26, mw * 0.12);
+    g.quadraticCurveTo(-mw * 0.12, -mw * 0.08, 0, mw * 0.04);
+    g.quadraticCurveTo(mw * 0.12, mw * 0.16, mw * 0.26, mw * 0.1); g.stroke();
+  } else if (f === 'furious'){
+    const gw = mw * 0.8, gh = mw * 0.36;                   // bared, jagged snarl
+    g.fillStyle = '#fff';
+    g.beginPath(); g.moveTo(-gw / 2, -gh / 2); g.lineTo(gw / 2, -gh / 2);
+    for (let i = 4; i >= 0; i--){
+      g.lineTo(-gw / 2 + gw * (i + 0.5) / 5, gh / 2);
+      g.lineTo(-gw / 2 + gw * i / 5, -gh / 2 + gh * 0.15);
+    }
+    g.closePath(); g.fill();
+    g.lineWidth = Math.max(0.7, mw * 0.07); g.stroke();
   } else {
     g.beginPath(); g.moveTo(-mw * 0.38, 0); g.lineTo(mw * 0.38, 0); g.stroke();
   }
