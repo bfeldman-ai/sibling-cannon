@@ -108,6 +108,15 @@
     <span style="display:inline-block;width:17px"></span>clip the underside and you drop<br>
     <span class="sw" style="background:#98a4b0"></span>UFO &mdash; jackpot, needs real height
   </p>
+
+  <h2>Power-ups</h2>
+  <p class="legend">
+    <span class="sw" style="background:#8fd0ff"></span>Shield &mdash; absorbs one hazard hit<br>
+    <span class="sw" style="background:#e8f5ff"></span>Wind &mdash; one big blast forward<br>
+    <span class="sw" style="background:#a860ff"></span>Low gravity &mdash; 3s of huge bounces
+  </p>
+  <p class="legend" style="color:#8a8370">They float between the birds and the UFOs. You carry one at a
+  time and set it off yourself &mdash; <kbd>click</kbd> while airborne.</p>
   <p class="legend" style="margin-top:8px;color:#8a8370">Chain assists without touching the
   ground and each one hits harder, up to 4&times;.</p>
 
@@ -115,6 +124,7 @@
   <h2>Controls</h2>
   <p class="keys">
     <kbd>Click</kbd> / <kbd>Space</kbd> &mdash; set angle, then power<br>
+    <kbd>Click</kbd> / <kbd>Space</kbd> in flight &mdash; use power-up<br>
     <kbd>Click</kbd> / <kbd>Space</kbd> &mdash; launch again after landing<br>
     <kbd>R</kbd> &mdash; new world
   </p>
@@ -392,6 +402,63 @@ const ufoTile = ssTile(96, 60, (g) => {
     g.fillStyle = lg; g.beginPath(); g.arc(lx, 3, 6, 0, 7); g.fill();
   }
 });
+
+const shieldTile = ssTile(46, 46, (g) => {
+  g.translate(23, 23);
+  g.strokeStyle = '#7ec8ff'; g.lineWidth = 3;                 // hollow ring
+  g.beginPath(); g.arc(0, 0, 19, 0, 7); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2;
+  g.beginPath(); g.arc(0, 0, 16.4, 0, 7); g.stroke();
+  const sg = g.createLinearGradient(0, -13, 0, 13);           // shield inside
+  sg.addColorStop(0, '#dff1ff'); sg.addColorStop(0.5, '#8fd0ff'); sg.addColorStop(1, '#3f8fd0');
+  g.fillStyle = sg;
+  g.beginPath();
+  g.moveTo(0, -13); g.lineTo(10, -8.5); g.lineTo(10, 2); 
+  g.quadraticCurveTo(10, 10, 0, 13.5);
+  g.quadraticCurveTo(-10, 10, -10, 2); g.lineTo(-10, -8.5);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#2f6f9f'; g.lineWidth = 1.4; g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.5)';
+  g.beginPath(); g.moveTo(-1.5, -10) ; g.lineTo(-6.5, -7.5); g.lineTo(-6.5, 1); 
+  g.quadraticCurveTo(-6.5, 6, -1.5, 8.5); g.closePath(); g.fill();
+});
+
+const windTile = ssTile(54, 40, (g) => {
+  g.translate(29, 20);
+  g.strokeStyle = 'rgba(210,238,255,.9)'; g.lineCap = 'round';  // speed lines
+  for (const [y, l, w] of [[-8, 20, 2.4], [0, 26, 2.8], [8, 17, 2.2]]){
+    g.lineWidth = w;
+    g.beginPath(); g.moveTo(-26, y); g.lineTo(-26 + l, y); g.stroke();
+  }
+  const cg = g.createRadialGradient(-2, -4, 2, 2, 0, 18);
+  cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.6, '#e8f5ff'); cg.addColorStop(1, '#b9dcf2');
+  g.fillStyle = cg;
+  g.beginPath();
+  g.arc(-4, 1, 9, 0, 7); g.arc(4, -4, 11, 0, 7); g.arc(13, 2, 8, 0, 7);
+  g.fill();
+  g.fillStyle = 'rgba(255,255,255,.85)';
+  g.beginPath(); g.ellipse(2, 7, 15, 4.5, 0, 0, 7); g.fill();
+});
+
+const holeTile = ssTile(46, 46, (g) => {
+  g.translate(23, 23);
+  const ac = g.createRadialGradient(0, 0, 8, 0, 0, 21);        // accretion glow
+  ac.addColorStop(0, 'rgba(150,90,255,0)');
+  ac.addColorStop(0.55, 'rgba(168,96,255,.75)');
+  ac.addColorStop(0.8, 'rgba(255,160,70,.85)');
+  ac.addColorStop(1, 'rgba(255,120,40,0)');
+  g.fillStyle = ac; g.beginPath(); g.arc(0, 0, 21, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,205,140,.9)'; g.lineWidth = 2;      // lensing ring
+  g.beginPath(); g.ellipse(0, 0, 15.5, 5.5, -0.28, 0, 7); g.stroke();
+  g.fillStyle = '#05060a';                                      // event horizon
+  g.beginPath(); g.arc(0, 0, 9.5, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(190,150,255,.55)'; g.lineWidth = 1.2;
+  g.beginPath(); g.arc(0, 0, 10.4, 0, 7); g.stroke();
+});
+
+const POWER_TILE = { shield: shieldTile, wind: windTile, hole: holeTile };
+const POWER_NAME = { shield: 'SHIELD', wind: 'WIND', hole: 'LOW GRAVITY' };
+const POWERS = ['shield', 'wind', 'hole'];
 
 const OB_TILE = { bomb: bombTile, spring: springTile, spikes: spikesTile, balloon: balloonTile };
 
@@ -1155,13 +1222,19 @@ const sfx = {
   spikes: () => tone(90, 0.24, 'sawtooth', 0.08, 50),
   bird:   () => tone(520, 0.14, 'square', 0.05, 240),
   land:   () => { tone(500, 0.09, 'square', 0.05); setTimeout(() => tone(760, 0.12, 'square', 0.05), 90); },
+  pickup: () => { tone(880, 0.07, 'square', 0.05); setTimeout(() => tone(1320, 0.1, 'square', 0.05), 70); },
+  shield: () => tone(420, 0.3, 'sine', 0.07, 900),
+  wind:   () => tone(180, 0.4, 'sawtooth', 0.09, 1400),
+  hole:   () => tone(700, 0.45, 'sine', 0.07, 90),
+  deflect:() => tone(1200, 0.12, 'sine', 0.06, 500),
 };
 
 /* ---------- state ---------- */
 const AIM = 0, POWER = 1, FLIGHT = 2, REST = 3;
 let state, k, cam, obstacles, particles, trail, blood, puddles, spawnedTo, spawnedAir,
     spawnedSpace, meterT, angleDeg, power, restT, flightT, shake, flash, best, dist,
-    endedAt, combo, comboT, maxAlt, finalPuddle, zoom;
+    endedAt, combo, comboT, maxAlt, finalPuddle, zoom, progressX, stallT,
+    held, shieldOn, lowGravT, powerFlash, spawnedPower;
 let bloodOn = (localStorage.getItem('siblingCannon.blood') || '1') === '1';
 best = +(localStorage.getItem('siblingCannon.best') || 0);
 
@@ -1179,8 +1252,9 @@ function reset(){
   obstacles = []; particles = []; trail = []; blood = []; puddles = [];
   spawnedTo = 260; spawnedAir = 700; spawnedSpace = 1800;
   meterT = 0; angleDeg = 45; power = 0.6;
-  restT = 0; flightT = 0; shake = 0; flash = 0;
+  restT = 0; flightT = 0; shake = 0; flash = 0; progressX = CANNON_X; stallT = 0;
   dist = 0; endedAt = 0; combo = 0; comboT = 0; maxAlt = 0; finalPuddle = null;
+  held = null; shieldOn = false; lowGravT = 0; powerFlash = 0; spawnedPower = 900;
   wounds = []; woundT = 0;
   braids = null;
   ensureObstacles(1600);
@@ -1210,6 +1284,14 @@ function ensureObstacles(uptoX){
     const x = spawnedAir;
     obstacles.push({ t:'plane', x, y: groundY(x) - (360 + rnd() * 260),
                      hw: 46, hh: 13, r: 30, on: true, vx: -(55 + rnd() * 45) });
+  }
+  // Power-ups ride the gap above the birds (max ~230px) and below the UFOs (min 780px).
+  while (spawnedPower < uptoX){
+    spawnedPower += 430 + rnd() * 760;
+    const x = spawnedPower;
+    // generous catch radius: you only clip this band briefly on the way through
+    obstacles.push({ t:'power', kind: POWERS[Math.floor(rnd() * POWERS.length)],
+                     x, y: groundY(x) - (265 + rnd() * 455), r: 27, on: true, ph: rnd() * 6 });
   }
   // Only reachable off a chain - typically spring or bomb into a plane roof.
   while (spawnedSpace < uptoX){
@@ -1271,6 +1353,7 @@ function fire(){
   k.vx = Math.cos(a) * sp; k.vy = -Math.sin(a) * sp;
   k.spin = 5 + Math.random() * 5;
   state = FLIGHT; flightT = 0; restT = 0; shake = 10; flash = 0.45;
+  progressX = k.x; stallT = 0;
   sfx.fire(); burst(k.x, k.y, '#ffd27a', 20, 260);
 }
 function endRun(){
@@ -1281,7 +1364,31 @@ function endRun(){
   if (dist > best){ best = dist; try { localStorage.setItem('siblingCannon.best', best); } catch(e){} }
   sfx.land();
 }
+function pickUp(o){
+  held = o.kind; powerFlash = 1;
+  o.on = false; o.live = false;
+  burst(o.x, o.y, o.kind === 'hole' ? '#c79bff' : '#bfe6ff', 20, 240);
+  sfx.pickup();
+}
+function usePower(){
+  if (!held) return;
+  const m = comboMult();
+  if (held === 'shield'){
+    shieldOn = true; sfx.shield();
+    burst(k.x, k.y, '#8fd8ff', 18, 200);
+  } else if (held === 'wind'){
+    k.vx += 620 * m; k.vy = Math.min(k.vy, 0) - 480 * m;
+    combo++; comboT = 1.6; shake = 15;
+    burst(k.x - 16, k.y, '#dff2ff', 30, 340); sfx.wind();
+  } else {
+    lowGravT = 3; sfx.hole();
+    burst(k.x, k.y, '#c79bff', 22, 200);
+  }
+  held = null; powerFlash = 1;
+  nextFace();
+}
 function press(){
+  if (state === FLIGHT){ usePower(); return; }
   if (state === AIM){ angleDeg = 15 + 65 * tri(meterT); state = POWER; meterT = 0; sfx.tick(); }
   else if (state === POWER){ power = 0.3 + 0.7 * tri(meterT); fire(); }
   else if (state === REST && performance.now() - endedAt > 450){ reset(); }
@@ -1289,6 +1396,21 @@ function press(){
 
 /* ---------- update ---------- */
 function hitObstacle(o){
+  if (shieldOn){
+    let deflect = o.t === 'spikes' || o.t === 'bird';
+    if (o.t === 'plane')
+      deflect = !((k.y < o.y - 2) || (Math.abs(k.y - o.y) <= 2 && k.vy > 0));
+    if (deflect){                       // one hazard absorbed, then it's spent
+      o.live = false;
+      if (o.t !== 'spikes') o.on = false;
+      shieldOn = false;
+      burst(k.x, k.y, '#bfe8ff', 30, 340);
+      burst(o.x, o.y, '#8fd8ff', 16, 240);
+      shake = Math.max(shake, 8);
+      sfx.deflect();
+      return;
+    }
+  }
   const m = comboMult();            // chained air hits compound, capped at COMBO_CAP
   let assisted = true;
   if (o.t === 'bomb'){
@@ -1372,7 +1494,17 @@ function update(dt){
   if (comboT > 0){ comboT -= dt; if (comboT <= 0) combo = 0; }
 
   flightT += dt;
-  k.vy += GRAV * dt;
+  if (lowGravT > 0){
+    lowGravT -= dt;
+    if (Math.random() < 0.55){          // sparkle trail
+      const a = Math.random() * 7, r2 = 10 + Math.random() * 14;
+      particles.push({ x: k.x + Math.cos(a) * r2, y: k.y + Math.sin(a) * r2,
+                       vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 40,
+                       life: 0.4 + Math.random() * 0.4, r: 1 + Math.random() * 2, c: '#dcc4ff' });
+    }
+  }
+  if (powerFlash > 0) powerFlash = Math.max(0, powerFlash - dt * 2);
+  k.vy += GRAV * (lowGravT > 0 ? 0.5 : 1) * dt;
   const d = Math.max(0, 1 - DRAG * dt);
   k.vx *= d; k.vy *= d;
   k.x += k.vx * dt; k.y += k.vy * dt;
@@ -1398,7 +1530,9 @@ function update(dt){
     } else if (o.t === 'ufo'){
       const ex = dx / (o.rx + rad * 0.6), ey = dy / (o.ry + rad * 0.6);
       if (ex * ex + ey * ey < 1) hitObstacle(o);
-    } else if (dx * dx + dy * dy < (o.r + rad) * (o.r + rad)) hitObstacle(o);
+    } else if (dx * dx + dy * dy < (o.r + rad) * (o.r + rad)){
+      if (o.t === 'power') pickUp(o); else hitObstacle(o);
+    }
   }
 
   const gy = groundY(k.x);
@@ -1410,7 +1544,7 @@ function update(dt){
     if (vn < 0){
       // springier normal bounce and far less tangential scrub, so he skips along
       // in a decaying series of bounces instead of stopping dead
-      const e = 0.62, fr = 0.94;
+      const e = lowGravT > 0 ? 0.87 : 0.62, fr = 0.94;
       k.vx -= (1 + e) * vn * nx; k.vy -= (1 + e) * vn * ny;
       const tx = -ny, ty = nx;
       const newVn = k.vx * nx + k.vy * ny;
@@ -1436,7 +1570,11 @@ function update(dt){
 
   dist = Math.max(dist, Math.floor((k.x - CANNON_X) / PPF));
   maxAlt = Math.max(maxAlt, Math.floor((groundY(k.x) - k.y) / PPF));
-  if (restT > 1.0 || flightT > 60) endRun();
+  // End on a genuine stall, not on the clock. A flat 60s timer used to guillotine
+  // runs that were still travelling - 16000ft is perfectly reachable inside a
+  // minute once power-ups and chains are involved.
+  if (k.x > progressX + 40){ progressX = k.x; stallT = 0; } else stallT += dt;
+  if (restT > 1.0 || stallT > 10 || flightT > 240) endRun();
 
   cam.x += (Math.max(0, k.x - 210) - cam.x) * Math.min(1, dt * 6);
   cam.y += (Math.min(groundY(k.x) - 300, k.y - 170) - cam.y) * Math.min(1, dt * 4);
@@ -1636,7 +1774,18 @@ function render(){
       ctx.fillStyle = 'rgba(0,0,0,' + (0.26 * (1 - air * 0.8)) + ')';
       ctx.beginPath(); ctx.ellipse(sx, gsy + 1, 16 - air * 7, 4.5 - air * 2, 0, 0, 7); ctx.fill();
     }
-    if (o.t === 'bird'){
+    if (o.t === 'power'){
+      const bob = Math.sin(performance.now() / 520 + o.ph) * 5;
+      const py2 = sy + bob;
+      const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 300 + o.ph);
+      const hg = ctx.createRadialGradient(sx, py2, 4, sx, py2, 30);
+      const tint = o.kind === 'hole' ? '168,96,255' : o.kind === 'wind' ? '190,225,255' : '126,200,255';
+      hg.addColorStop(0, 'rgba(' + tint + ',' + (0.30 * pulse) + ')');
+      hg.addColorStop(1, 'rgba(' + tint + ',0)');
+      ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(sx, py2, 30, 0, 7); ctx.fill();
+      const t2 = POWER_TILE[o.kind], lw2 = t2._logical.w, lh2 = t2._logical.h;
+      blit(t2, sx - lw2 / 2, py2 - lh2 / 2, lw2, lh2);
+    } else if (o.t === 'bird'){
       const f = Math.floor(performance.now() / 110 + o.ph) % 3;
       blit(birdTiles[f], sx - 22, sy - 17, 44, 34);
     } else if (o.t === 'plane'){
@@ -1710,6 +1859,18 @@ function render(){
     ctx.beginPath();
     ctx.ellipse(k.x - cam.x, gsy + 1, (s.w * 0.5) * (1 - air * 0.55), 5 * (1 - air * 0.6), 0, 0, 7);
     ctx.fill();
+    if (shieldOn){
+      const rr = Math.max(s.w, s.h) * 0.85 + 6;
+      const fade = 0.82 + 0.18 * Math.sin(performance.now() / 240);
+      const bg2 = ctx.createRadialGradient(k.x - cam.x, ksy, rr * 0.55, k.x - cam.x, ksy, rr);
+      bg2.addColorStop(0, 'rgba(120,200,255,' + (0.10 * fade) + ')');
+      bg2.addColorStop(0.75, 'rgba(120,200,255,' + (0.26 * fade) + ')');
+      bg2.addColorStop(1, 'rgba(190,235,255,' + (0.55 * fade) + ')');
+      ctx.fillStyle = bg2;
+      ctx.beginPath(); ctx.arc(k.x - cam.x, ksy, rr, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(200,240,255,' + (0.8 * fade) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(k.x - cam.x, ksy, rr, 0, 7); ctx.stroke();
+    }
     ctx.save();
     ctx.translate(k.x - cam.x, ksy); ctx.rotate(k.rot);
     const src = activeArt();
@@ -1759,6 +1920,48 @@ function render(){
     outlined('click for a new world', W / 2, H / 2 + 44, 14);
     outlined('seed ' + seed.toString(16), W / 2, H / 2 + 62, 10, 'center', '#a9c4d0');
   }
+
+  // ---- power-up slot ----
+  (() => {
+    const bx = 16, by = H - 58, bs = 46;
+    ctx.fillStyle = 'rgba(12,20,26,.55)';
+    ctx.fillRect(bx, by, bs, bs);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = held ? 'rgba(255,233,168,' + (0.75 + 0.25 * Math.sin(performance.now() / 220)) + ')'
+                           : 'rgba(255,255,255,.28)';
+    ctx.strokeRect(bx, by, bs, bs);
+    if (held){
+      if (powerFlash > 0){
+        ctx.fillStyle = 'rgba(255,240,190,' + (powerFlash * 0.5) + ')';
+        ctx.fillRect(bx, by, bs, bs);
+      }
+      const t2 = POWER_TILE[held], sc = 34 / Math.max(t2._logical.w, t2._logical.h);
+      blit(t2, bx + bs / 2 - t2._logical.w * sc / 2, by + bs / 2 - t2._logical.h * sc / 2,
+           t2._logical.w * sc, t2._logical.h * sc);
+      outlined(POWER_NAME[held], bx + bs + 8, by + 14, 11, 'left', '#ffe9a8');
+      outlined(state === FLIGHT ? 'CLICK to use' : 'use it in flight', bx + bs + 8, by + 30, 10, 'left');
+    } else {
+      outlined('no power-up', bx + bs + 8, by + 22, 10, 'left', 'rgba(255,255,255,.6)');
+    }
+    // running effects
+    let ex = bx, ey = by - 20;
+    const timer = (label, t, total, colour) => {
+      if (t <= 0) return;
+      outlined(label, ex, ey, 10, 'left', colour);
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(ex + 52, ey - 5, 46, 8);
+      ctx.fillStyle = colour; ctx.fillRect(ex + 52, ey - 5, 46 * (t / total), 8);
+      ey -= 15;
+    };
+    if (shieldOn){
+      outlined('SHIELD', ex, ey, 10, 'left', '#8fd8ff');
+      ctx.globalAlpha = 0.55 + 0.45 * Math.sin(performance.now() / 250);
+      ctx.fillStyle = '#8fd8ff';
+      ctx.beginPath(); ctx.arc(ex + 62, ey - 1, 4.5, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+      ey -= 15;
+    }
+    timer('LOW-G', lowGravT, 3, '#c79bff');
+  })();
 
   if (flash > 0){
     ctx.fillStyle = 'rgba(255,236,196,' + (flash * 0.5) + ')';
